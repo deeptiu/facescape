@@ -15,10 +15,11 @@ def check_eyes_open(keypoints):
 
     # EAR (eye aspect ratio)
     # subtract 1 since keypoint indexing begins at 1 on the diagram
-    left_ear = (np.linalg.norm(keypoints[38-1], keypoints[42-1]) + np.linalg.norm(keypoints[39-1], keypoints[41-1]))/(2*np.linalg.norm(keypoints[37-1], keypoints[40-1]))
-    right_ear = (np.linalg.norm(keypoints[44-1], keypoints[48-1]) + np.linalg.norm(keypoints[45-1], keypoints[47-1]))/(2*np.linalg.norm(keypoints[43-1], keypoints[46-1]))
+    left_ear = (np.linalg.norm(keypoints[38-1]- keypoints[42-1]) + np.linalg.norm(keypoints[39-1]- keypoints[41-1]))/(2*np.linalg.norm(keypoints[37-1]- keypoints[40-1]))
+    right_ear = (np.linalg.norm(keypoints[44-1]- keypoints[48-1]) + np.linalg.norm(keypoints[45-1]- keypoints[47-1]))/(2*np.linalg.norm(keypoints[43-1]- keypoints[46-1]))
 
-    if left_ear < 0.3 or right_ear < 0.3:
+    print("left ear ", left_ear, " right ear ", right_ear)
+    if left_ear < 0.33 or right_ear < 0.33:
         return False
     return True
 
@@ -26,6 +27,21 @@ def check_gaze_forward(keypoints, src_path):
 
     
     return True
+
+def check_mouth_closed(keypoints):
+    # mouth 61,62,63,64,65,66,67,68
+    # top 62,63,64
+    # bottom 66,67,68
+
+    # EAR (eye aspect ratio)
+    # subtract 1 since keypoint indexing begins at 1 on the diagram
+    mouth_ear = (np.linalg.norm(keypoints[62-1]- keypoints[68-1]) + np.linalg.norm(keypoints[63-1]- keypoints[67-1]) + np.linalg.norm(keypoints[64-1] - keypoints[66-1]))/(3*np.linalg.norm(keypoints[61-1]- keypoints[65-1]))
+    print("mouth ear ", mouth_ear)
+    if mouth_ear > 0.04:
+        return False
+    return True
+
+
 def get_all_unique_subjects(base_path):
 
     all_subjects = []
@@ -74,6 +90,17 @@ def find_max(subject_name, all_frames, base_path, au):
     frame = None
     return frame
 
+def create_output_dir(output_root, subject_names):
+    output_dirs = []
+    for subject_name in subject_names:
+        # video_name = os.path.basename(video_path).split('.')[0]
+        output_dir = os.path.join(output_root, subject_name)
+        os.makedirs(output_dir, exist_ok=True)
+        output_dir2 = os.path.join(output_dir, "neutral")
+        os.makedirs(output_dir2, exist_ok=True)
+        output_dirs.append(output_dir2)
+    return output_dirs
+
 # find first frame with the max 0's 
 def find_neutral_frame(subject_name, base_path, all_frames, all_video_paths):
 
@@ -109,11 +136,11 @@ def extract_from_video(video_paths, output_dir, frame_ids, subject_name):
     failed_video_path = []
     for video_path,frame_num in zip(video_paths, frame_ids):
         cap = cv2.VideoCapture(video_path)
-        print("cap", cv2.CAP_PROP_FRAME_COUNT)
+        # print("cap", cv2.CAP_PROP_FRAME_COUNT)
         cap.set(cv2.CAP_PROP_FRAME_COUNT, frame_num - 1)
         res, frame = cap.read()
         if res:
-            path = os.path.join(output_dir, f"{subject_name}_{frame_num}.jpg")
+            path = os.path.join(output_dir, f"{frame_num}.jpg")
             cv2.imwrite(path, frame)
             paths.append(path)
         else:
@@ -126,21 +153,23 @@ if __name__ == "__main__":
     # CUDA_VISIBLE_DEVICES=2 python assign_au.py --base_path /data/datasets/EB+ --subject_name M010
 
     base_path = "/data/datasets/EB+"
-    subject_name = "M010"
-    all_frames_per_subject(subject_name, base_path)
+    # subject_name = "M010"
+    # all_frames_per_subject(subject_name, base_path)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--base_path", type=str, required=True, help="The path to the base directory containing FACS and 2D_Video.")
-    parser.add_argument("--subject_name", type=str, required=False, help="The name of the subject to extract information for")
-    parser.add_argument("--workers", type=int, default=4, help="Number of workers to use.")
-    args = parser.parse_args()
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("--base_path", type=str, required=True, help="The path to the base directory containing FACS and 2D_Video.")
+    # parser.add_argument("--subject_name", type=str, required=False, help="The name of the subject to extract information for")
+    # parser.add_argument("--workers", type=int, default=4, help="Number of workers to use.")
+    # args = parser.parse_args()
 
-    get_all_unique_subjects(args.base_path)
+    all_subjects = get_all_unique_subjects(base_path)
 
-    # per subject
-    all_frames, all_video_paths = all_frames_per_subject(args.subject_name, args.base_path)
+    for subject_name in all_subjects:
 
-    video_path, frame_ids = find_neutral_frame(args.subject_name, args.base_path, all_frames, all_video_paths)
+        # per subject
+        all_frames, all_video_paths = all_frames_per_subject(subject_name, base_path)
 
-    output_dir = "all_neutral_frames/"
-    extract_from_video(video_path, output_dir, frame_ids, args.subject_name)
+        video_path, frame_ids = find_neutral_frame(subject_name, base_path, all_frames, all_video_paths)
+
+        output_dir = "all_neutral_frames/"
+        extract_from_video(video_path, output_dir, frame_ids, subject_name)
